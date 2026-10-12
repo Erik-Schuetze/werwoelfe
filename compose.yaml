@@ -11,6 +11,9 @@ services:
       WERWOELFE_GAME_IMAGE: werwoelfe-game:local
       WERWOELFE_MAX_CONCURRENT_RUNS: 1
       WERWOELFE_MAX_RUN_MINUTES: 30
+      # Local development drives the Docker daemon through the mounted socket; say so
+      # explicitly rather than leaning on the in-cluster auto-detection.
+      WERWOELFE_RUNTIME: docker
     volumes:
       - ./data:/data
       - /var/run/docker.sock:/var/run/docker.sock

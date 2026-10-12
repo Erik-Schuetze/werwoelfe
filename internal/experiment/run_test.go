@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,8 +18,20 @@ import (
 )
 
 type scriptedClient struct {
+	mu       sync.Mutex
 	calls    int
 	requests [][]model.Message
+	// delay, when set, sleeps before each response so a test can slow a run enough to inject a
+	// pause mid-game; every other test leaves it zero and runs at full speed.
+	delay time.Duration
+}
+
+// callCount reports the number of calls so far. It takes the lock so a test can read a run's
+// progress from another goroutine while the runner is driving the client.
+func (c *scriptedClient) callCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calls
 }
 
 func TestSystemInstructionUsesTruthfulInWorldFraming(t *testing.T) {
@@ -202,8 +215,14 @@ func promptPlayerID(prompt string) string {
 }
 
 func (c *scriptedClient) CompleteJSON(_ context.Context, messages []model.Message) (string, error) {
+	c.mu.Lock()
 	c.calls++
 	c.requests = append(c.requests, append([]model.Message(nil), messages...))
+	calls := c.calls
+	c.mu.Unlock()
+	if c.delay > 0 {
+		time.Sleep(c.delay)
+	}
 	if len(messages) == 0 {
 		return "", fmt.Errorf("completion messages are empty")
 	}
@@ -234,7 +253,7 @@ func (c *scriptedClient) CompleteJSON(_ context.Context, messages []model.Messag
 			if !player.Alive || player.ID == speaker {
 				continue
 			}
-			if c.calls%2 == 0 {
+			if calls%2 == 0 {
 				return fmt.Sprintf(`{"type":"agree","target":%q,"message":"Agreed, and I will hold that line.","thought":"Backing the case already on the table."}`, player.ID), nil
 			}
 			return `{"type":"pass","thought":"Nothing new to add yet."}`, nil
@@ -1217,4 +1236,115 @@ func TestResponseLogBoundsRecordsAndFallsBackToStderr(t *testing.T) {
 	// A nil log is a no-op, so a test that does not configure one never panics.
 	var nilLog *ResponseLog
 	nilLog.Record(FailureRecord{Error: "ignored"})
+}
+
+// TestPauseControlHoldsTurnsAndPreservesEventStream is the integration test for the cooperative
+// pause gate. It drives a real Run against the scripted client while watching the shared control
+// file, proving three things at once: the gate sits before every player action (no model call
+// lands while the file says paused), the run resumes once the file says paused=false, and the
+// paused run still finishes with a complete, gap-free, duplicate-free event stream — pausing never
+// interrupts a completion in flight nor splits a record.
+func TestPauseControlHoldsTurnsAndPreservesEventStream(t *testing.T) {
+	players := make([]config.Player, 8)
+	for index := range players {
+		players[index] = config.Player{
+			ID: "p" + string(rune('1'+index)), Name: "Player", Personality: "Be concise.",
+		}
+	}
+	cfg := config.Config{
+		Players: players,
+		Roles: []game.Role{
+			game.Werewolf, game.Werewolf, game.Seer,
+			game.Villager, game.Villager, game.Villager, game.Villager, game.Villager,
+		},
+		Model: config.Model{MaxRetries: 0},
+	}
+	// A per-call delay keeps the run alive long enough to inject and lift a pause mid-game: the
+	// scripted client is otherwise instantaneous and the whole game would finish before the pause.
+	client := &scriptedClient{delay: 3 * time.Millisecond}
+	runner, err := NewRunner(cfg, client, rand.New(rand.NewPCG(7, 8)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	controlPath := filepath.Join(t.TempDir(), "control.json")
+	runner.PauseControl = NewPauseControl(controlPath)
+	// Poll quickly so the test stays fast; production keeps the one-second default.
+	runner.PauseControl.interval = 20 * time.Millisecond
+
+	// The observer records every event, public and private, so the finished stream can be checked
+	// for completeness and ordering.
+	var streamed []game.Event
+	runner.Game.SetEventObserver(func(event game.Event) { streamed = append(streamed, event) })
+
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(context.Background()) }()
+
+	// Let the run get underway before pausing.
+	waitForCalls(t, client, 3)
+
+	if err := writeControlFile(t, controlPath, true); err != nil {
+		t.Fatal(err)
+	}
+	// Give the gate time to observe the pause (well over one poll interval).
+	time.Sleep(5 * runner.PauseControl.interval)
+	atPause := client.callCount()
+	if atPause < 3 {
+		t.Fatalf("the run made only %d calls before the pause took effect", atPause)
+	}
+	// The gate sits before every player action, so the call count must not advance while paused.
+	time.Sleep(5 * runner.PauseControl.interval)
+	if got := client.callCount(); got != atPause {
+		t.Fatalf("the call count advanced while paused: %d -> %d", atPause, got)
+	}
+
+	// Lift the pause; the run must resume and finish normally.
+	if err := writeControlFile(t, controlPath, false); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("the run failed after resuming: %v", err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("the run did not complete after the control file was unpaused")
+	}
+
+	if runner.Game.Winner() == "" {
+		t.Fatal("the paused run never reached a winner")
+	}
+	if resumed := client.callCount(); resumed <= atPause {
+		t.Fatalf("no further calls after resuming: still %d (paused at %d)", resumed, atPause)
+	}
+	// Completeness and ordering: sequences are 1-based and contiguous, so a gap, duplicate or
+	// reorder fails here. Pausing must not have corrupted the stream.
+	if len(streamed) == 0 {
+		t.Fatal("the run produced no events")
+	}
+	for index, event := range streamed {
+		if event.Sequence != index+1 {
+			t.Fatalf("streamed event %d has sequence %d, want %d (gap, duplicate or reorder)", index, event.Sequence, index+1)
+		}
+	}
+}
+
+// waitForCalls blocks until the scripted client has completed at least want calls, failing the
+// test after a generous timeout so a stalled run reports the reason rather than hanging.
+func waitForCalls(t *testing.T, client *scriptedClient, want int) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for client.callCount() < want {
+		if time.Now().After(deadline) {
+			t.Fatalf("the client made only %d calls, want at least %d", client.callCount(), want)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// writeControlFile writes the operator control file the gate polls, in the console's contract
+// shape. requested_at is included to prove the gate ignores fields it does not model.
+func writeControlFile(t *testing.T, path string, paused bool) error {
+	t.Helper()
+	body := fmt.Sprintf(`{"schema_version":1,"paused":%t,"requested_at":"2026-10-12T00:00:00Z"}`, paused)
+	return os.WriteFile(path, []byte(body), 0o600)
 }

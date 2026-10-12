@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test"
   },
   "dependencies": {
+    "@kubernetes/client-node": "^2.0.0",
     "better-sqlite3": "^13.0.3",
     "next": "16.4.0",
     "react": "19.3.0",

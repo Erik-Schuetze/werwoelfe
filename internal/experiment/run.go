@@ -91,6 +91,13 @@ type Runner struct {
 	// validate, and any failed cast-generation call, so a failed — or silently degraded — run can
 	// be explained afterwards. It is best-effort and optional; a nil log records nothing.
 	ResponseLog *ResponseLog
+	// PauseControl, when set, is checked before each player action and at the top of the run
+	// loop so the operator console can hold a run between turns by signalling through a shared
+	// control file. Both sites are safe to block at: the previous action's effects are already
+	// applied and its event already written — EventStream.write flushes and syncs per record — so
+	// blocking here can never interrupt a completion in flight nor split a record. Run is driven
+	// by a single goroutine, so no locking is needed. It is optional; nil disables the feature.
+	PauseControl *PauseControl
 	// playerTemperatures holds each player's resolved temperature (explicit, else the
 	// run default). Resolving here keeps an explicit 0 distinct from "unset".
 	playerTemperatures map[string]float64
@@ -159,6 +166,9 @@ func (r *Runner) Run(ctx context.Context) error {
 		return err
 	}
 	for r.Game.Phase() != game.Finished {
+		if err := r.PauseControl.Wait(ctx); err != nil {
+			return err
+		}
 		switch r.Game.Phase() {
 		case game.Discussion, game.FinalStatements, game.WerewolfPlanning:
 			if err := r.runCurrentSpeaker(ctx); err != nil {
@@ -333,6 +343,9 @@ func (r *Runner) runVote(ctx context.Context) error {
 }
 
 func (r *Runner) requestAndApply(ctx context.Context, playerID string) error {
+	if err := r.PauseControl.Wait(ctx); err != nil {
+		return err
+	}
 	player, exists := r.Players[playerID]
 	if !exists {
 		return fmt.Errorf("missing configured player %q", playerID)

@@ -28,6 +28,22 @@ type GameRow = {
   winner: string | null;
   title: string | null;
   error_message: string | null;
+  deadline_at: string | null;
+  paused_at: string | null;
+};
+
+/**
+ * The columns the run poller and the startup reconciler need: a run's identity and status, plus
+ * the persisted deadline clock. Deliberately narrower than `GameRow` — the poller runs every few
+ * seconds and must not drag `config_json` and the rest of the row along.
+ */
+export type ActiveGameRow = {
+  id: string;
+  status: GameStatus;
+  started_at: string | null;
+  artifact_dir: string;
+  deadline_at: string | null;
+  paused_at: string | null;
 };
 
 type PublicResult = {
@@ -65,6 +81,24 @@ function migrateGameTitle(db: Database.Database): void {
   }
 }
 
+/**
+ * The durable run deadline, so a console that restarts mid-run can re-arm it.
+ *
+ * `deadline_at` is the wall-clock instant the run's budget runs out; `paused_at` is when the
+ * operator paused it, or NULL while it is live. Both are ISO-8601 strings, matching the other
+ * timestamps on this table — the arithmetic over them lives in `./run-deadline.ts`.
+ */
+function migrateRunDeadline(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(games)").all() as Array<{ name: string }>;
+  const names = new Set(columns.map((column) => column.name));
+  if (!names.has("deadline_at")) {
+    db.exec("ALTER TABLE games ADD COLUMN deadline_at TEXT");
+  }
+  if (!names.has("paused_at")) {
+    db.exec("ALTER TABLE games ADD COLUMN paused_at TEXT");
+  }
+}
+
 function databasePath(): string {
   fs.mkdirSync(environment.dataDir, { recursive: true });
   return path.join(environment.dataDir, "werwoelfe.sqlite");
@@ -79,6 +113,7 @@ function database(): Database.Database {
     db.exec(schemaSQL);
     migrateEventMetadata(db);
     migrateGameTitle(db);
+    migrateRunDeadline(db);
     globalThis.werwoelfeDatabase = db;
   }
   return globalThis.werwoelfeDatabase;
@@ -212,9 +247,16 @@ export function createGame(
   const db = database();
   const createdAt = new Date().toISOString();
   const insert = db.transaction(() => {
+    // 'paused' is counted deliberately. The limit is a resource limit, not a progress limit: a
+    // paused run's game pod is still alive (the engine blocks between turns on the control file,
+    // it is not suspended), still holding its Guaranteed-QoS CPU and memory on the node the
+    // console shares, and still attached to the RWO run volume. Excluding it would let a second
+    // game start alongside a paused one and oversubscribe exactly the resource this limit
+    // protects — "Only N game can run at once" would stop being true. It also keeps the count
+    // consistent with `getActiveGames()`, which the poller and reconciler treat as the live set.
     const active = (
       db
-        .prepare("SELECT COUNT(*) AS count FROM games WHERE status IN ('queued', 'running')")
+        .prepare("SELECT COUNT(*) AS count FROM games WHERE status IN ('queued', 'running', 'paused')")
         .get() as { count: number }
     ).count;
     if (active >= environment.maxConcurrentRuns) {
@@ -290,12 +332,63 @@ export function getRunConfiguration(id: string): {
   config: GameConfigInput;
   artifactDir: string;
   status: GameStatus;
+  startedAt: string | null;
 } | null {
   const row = getGameRow(id);
   if (!row) {
     return null;
   }
-  return { config: parseConfig(row.config_json), artifactDir: row.artifact_dir, status: row.status };
+  return {
+    config: parseConfig(row.config_json),
+    artifactDir: row.artifact_dir,
+    status: row.status,
+    startedAt: row.started_at,
+  };
+}
+
+/**
+ * Every non-terminal run — the set the poller joins the cluster's Jobs against.
+ *
+ * One cheap SELECT: deliberately not `listGames()`, which runs two `COUNT(*)` queries per row to
+ * build a summary the poller never looks at. Called every few seconds, that difference matters.
+ */
+export function getActiveGames(): ActiveGameRow[] {
+  return database()
+    .prepare(
+      `SELECT id, status, started_at, artifact_dir, deadline_at, paused_at
+       FROM games WHERE status IN ('running', 'paused')`,
+    )
+    .all() as ActiveGameRow[];
+}
+
+/**
+ * Every game id, for deciding whether a cluster Job belongs to the console at all.
+ *
+ * One column off the primary key, deliberately: the orphan sweep runs every few seconds and only
+ * asks "does a row exist for this id", never "what does it say". Building a summary here (as
+ * `listGames` does, with two `COUNT(*)` per row) would be work the caller never reads.
+ */
+export function getKnownGameIds(): Set<string> {
+  const rows = database().prepare("SELECT id FROM games").all() as Array<{ id: string }>;
+  return new Set(rows.map((row) => row.id));
+}
+
+/** A run's persisted deadline clock, for re-arming it after a restart. */
+export function getGameDeadline(id: string): { deadlineAt: string | null; pausedAt: string | null } | null {
+  const row = database()
+    .prepare("SELECT deadline_at, paused_at FROM games WHERE id = ?")
+    .get(id) as { deadline_at: string | null; paused_at: string | null } | undefined;
+  if (!row) {
+    return null;
+  }
+  return { deadlineAt: row.deadline_at, pausedAt: row.paused_at };
+}
+
+/** Persist a run's deadline clock (ISO-8601, or NULL for "not paused"). */
+export function setGameDeadline(id: string, deadlineAt: string | null, pausedAt: string | null): void {
+  database()
+    .prepare("UPDATE games SET deadline_at = ?, paused_at = ? WHERE id = ?")
+    .run(deadlineAt, pausedAt, id);
 }
 
 export function setGameRunning(id: string): void {
@@ -390,10 +483,15 @@ export function completeGame(id: string, result: PublicResult): void {
   // titles — is stored as NULL, never an empty string. The engine's title is written as-is.
   const title = result.title?.trim() ? result.title : null;
   const update = db.transaction(() => {
+    // 'paused' is included, matching `failExitedGame`. Pausing is *cooperative*: the engine keeps
+    // running until its next turn boundary, so a pause that lands after the final action leaves a
+    // run that finishes its result record while the row still says 'paused'. Omitting it here
+    // would no-op the completion and then, on the next observation, mark a finished game
+    // 'failed' — the record is the truth, so the row must accept it.
     db.prepare(
       `UPDATE games
        SET status = 'completed', finished_at = ?, winner = ?, title = ?, error_message = NULL
-       WHERE id = ? AND status IN ('queued', 'running')`,
+       WHERE id = ? AND status IN ('queued', 'running', 'paused')`,
     ).run(new Date().toISOString(), result.winner, title, id);
     const player = db.prepare(
       "UPDATE game_players SET name = ?, role = ?, alive = ? WHERE game_id = ? AND id = ?",

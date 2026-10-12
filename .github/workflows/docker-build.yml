@@ -1,0 +1,155 @@
+name: Docker Build and Push
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+# Least privilege for the whole workflow; the job that actually pushes adds
+# the one permission it needs on top of this.
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # No explicit permissions before this: the job inherited the repository
+    # default, which for older repositories is read/write. Nothing here
+    # touches the API, so it gets the same read-only pair as the workflow.
+    permissions:
+      contents: read
+    steps:
+      # Actions are pinned to full commit SHAs. A tag such as @v4 is a
+      # mutable ref that the action's owners (or anyone who compromises
+      # their account) can repoint at new code, which would then run here
+      # with this workflow's token. The trailing comment records which
+      # release the SHA corresponds to, and Dependabot
+      # (.github/dependabot.yml) keeps both in sync.
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # --- engine (the Go moderator this repository builds) -----------------
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build engine
+        run: go build ./...
+
+      - name: Vet engine
+        run: go vet ./...
+
+      - name: Check engine formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Test engine
+        run: go test ./... -race
+
+      # --- console (the Next.js operator under web/) ------------------------
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          # Matches the runtime image's node:26 line so CI and the shipped
+          # container build against the same major.
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install console dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Lint console
+        working-directory: web
+        run: npm run lint
+
+      - name: Build console
+        working-directory: web
+        run: npm run build
+
+      # The alias hook teaches the runner the app's "@/..." import alias, which
+      # the server-side unit tests rely on; it is dev-only and never shipped.
+      - name: Test console
+        working-directory: web
+        run: node --test --import ./scripts/alias-hook.mjs
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    # Two images from one repository: the Go engine at the root and the
+    # Next.js console under web/. Each matrix entry is a full build, so a
+    # broken console build does not hide a passing engine build.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: engine
+            context: .
+            file: Dockerfile
+            image: erik-schuetze/werwoelfe
+          - name: console
+            context: ./web
+            file: web/Dockerfile
+            image: erik-schuetze/werwoelfe-operator
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The checkout's git credential is only needed by steps that push
+          # back to the repository; this one doesn't, so it stays out of
+          # .git/config where later steps could read it.
+          persist-credentials: false
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for the ${{ matrix.name }} image
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ matrix.image }}
+          # Image tags follow semver and mirror the git tag exactly: tag
+          # v0.2.0 publishes v0.2.0. That matters because the manifest is the
+          # only place the version is written down, and a reviewer should be
+          # able to copy the release name into a deployment manifest
+          # unchanged. (The default {{version}} pattern would strip the "v",
+          # producing a tag that no longer matches the release it came from.)
+          #
+          # The branch and short-SHA tags are convenience/traceability tags
+          # only - they are mutable by definition, so nothing that runs
+          # unattended may reference them.
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern=v{{version}}
+            type=sha,prefix=,suffix=,format=short
+
+      - name: Build and push ${{ matrix.name }} image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

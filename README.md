@@ -26,7 +26,7 @@ docker run --rm \
 
 ## Local operator console
 
-The private operator console is a Next.js application in [`web/`](web). It creates and follows local Docker runs while keeping the DeepSeek key on the server. Trusted local console viewers receive every game event, including private Werewolf meal choices and Fortune Teller results, along with final role assignments and sanitized run metadata. Public `player_removed` events include the eliminated player ID and revealed role so the live board can update without interpreting transcript text.
+The private operator console is a Next.js application in [`web/`](web). It creates and follows one run per game — a local Docker container during development, or a Kubernetes Job in a cluster — and never exposes the DeepSeek key to a console viewer. Trusted local console viewers receive every game event, including private Werewolf meal choices and Fortune Teller results, along with final role assignments and sanitized run metadata. Public `player_removed` events include the eliminated player ID and revealed role so the live board can update without interpreting transcript text.
 
 ```sh
 cp web/.env.example .env
@@ -49,7 +49,11 @@ npm install
 npm run dev
 ```
 
-The server process also needs access to the local Docker daemon. Configure `WERWOELFE_DATA_DIR`, `WERWOELFE_GAME_IMAGE`, `WERWOELFE_MAX_CONCURRENT_RUNS`, and `WERWOELFE_MAX_RUN_MINUTES` through the environment as needed. When the server itself runs in a container with the host Docker socket, set `WERWOELFE_DOCKER_DATA_DIR` to the host-visible path backing `WERWOELFE_DATA_DIR`; Compose does this automatically.
+The local Docker daemon is the **development** path: it needs no cluster and starts a game in seconds. The server process needs access to that daemon, and Compose names it explicitly with `WERWOELFE_RUNTIME=docker` rather than leaning on auto-detection. Configure `WERWOELFE_DATA_DIR`, `WERWOELFE_GAME_IMAGE`, `WERWOELFE_MAX_CONCURRENT_RUNS`, and `WERWOELFE_MAX_RUN_MINUTES` through the environment as needed. When the server itself runs in a container with the host Docker socket, set `WERWOELFE_DOCKER_DATA_DIR` to the host-visible path backing `WERWOELFE_DATA_DIR`; Compose does this automatically.
+
+### Kubernetes
+
+In a cluster the console schedules games differently: rather than running a container on the local daemon, it creates one Kubernetes Job per game through the Kubernetes API and follows that Job to completion, so it needs no Docker socket and no Docker CLI. It does need a ServiceAccount whose Role permits creating, getting, listing, watching, and deleting Jobs and reading pod logs in the target namespace. The same `ReadWriteOnce` volume that the console mounts at `/data` is mounted by each game Job, so a run's configuration, event stream, and result all live on one persistent volume; because an `RWO` volume attaches to only one node, each game Job is pinned to the node the console itself runs on, which means the console pod and its game Jobs must share a node. `DEEPSEEK_API_KEY` reaches the game pod directly from a Secret through a `secretKeyRef`, so the console never handles the key and it never appears in the console's own environment or in a Job manifest. Select this path with `WERWOELFE_RUNTIME=kubernetes`, or leave that blank and let the in-cluster service-account environment choose it; the full set of settings is documented in [`web/.env.example`](web/.env.example).
 
 ## Experiment protocol
 
@@ -74,7 +78,7 @@ kubectl create secret generic deepseek-api --from-literal=api-key="$DEEPSEEK_API
 kubectl apply -f deploy/job.yaml
 ```
 
-The configuration is mounted as a ConfigMap and the API key is injected from a Kubernetes Secret. The example Job does not persist `game-result.json`; mount a writable volume and set `-result` to a path on that volume for durable Kubernetes results. Do not commit a real `config.json`, `.env`, API key, private event history, or model prompts containing private game information.
+The configuration is mounted as a ConfigMap and the API key is injected from a Kubernetes Secret. The example Job does not persist `game-result.json`; mount a writable volume and set `-result` to a path on that volume for durable Kubernetes results. These manifests run the engine standalone, one game against one hand-written ConfigMap; they are not how the operator console schedules games, which creates its own Jobs as described under **Kubernetes** above. Do not commit a real `config.json`, `.env`, API key, private event history, or model prompts containing private game information.
 
 ## Test
 

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/eschuetze/werwoelfe/internal/config"
@@ -19,6 +21,7 @@ func main() {
 	seed := flag.Uint64("seed", 0, "optional deterministic random seed; zero uses a nondeterministic seed")
 	resultPath := flag.String("result", "game-result.json", "path for the sanitized completed-game result; empty disables writing it")
 	eventPath := flag.String("events", "", "optional path for append-only operator event records")
+	controlPath := flag.String("control", "", "optional JSON control file checked between turns for a cooperative pause; empty disables it")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
@@ -45,6 +48,7 @@ func main() {
 	failureLog := experiment.NewResponseLog(*eventPath)
 	defer func() { _ = failureLog.Close() }()
 	runner.ResponseLog = failureLog
+	runner.PauseControl = experiment.NewPauseControl(*controlPath)
 	var stream *experiment.EventStream
 	if *eventPath != "" {
 		stream, err = experiment.NewEventStream(*eventPath)
@@ -53,7 +57,11 @@ func main() {
 		}
 		runner.Game.SetEventObserver(stream.WriteEvent)
 	}
-	var ctx context.Context = context.Background()
+	// Cancel on SIGTERM and interrupt so that when Kubernetes deletes the Job the engine returns
+	// ctx.Err() through the run loop and the existing error path writes a real failure record,
+	// rather than dying mid-turn and leaving a truncated event stream and a bare exit code.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
+	defer stop()
 	cancel := func() {}
 	if *timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, *timeout)

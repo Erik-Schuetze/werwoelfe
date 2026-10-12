@@ -2,3 +2,12 @@
 node_modules
 data
 npm-debug.log*
+
+# Never send local secrets or run artifacts into the build context. The real
+# DEEPSEEK_API_KEY lives in web/.env, and the image is multi-stage so it would
+# not reach the final stage anyway - this keeps it out of the context (and out
+# of any future single-stage build) rather than relying on that.
+.env
+.env.*
+*.env
+!.env.example
