@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: werewolves-experiment
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: game
+          image: ghcr.io/example/werwoelfe:latest
+          args: ["-config", "/config/config.json", "-timeout", "30m"]
+          env:
+            - name: DEEPSEEK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: deepseek-api
+                  key: api-key
+          volumeMounts:
+            - name: game-config
+              mountPath: /config
+              readOnly: true
+      volumes:
+        - name: game-config
+          configMap:
+            name: werewolves-game-config

@@ -1,0 +1,19 @@
+# secrets — never commit .env; .env.example is safe and is tracked
+.env
+.env.*
+*.env
+!.env.example
+config.json
+game-result.json
+data/
+bin/
+coverage.out
+
+# local tooling state
+.claude/settings.local.json
+
+# build output (belt and braces; web/.gitignore also covers these)
+node_modules/
+.next/
+*.tsbuildinfo
+next-env.d.ts

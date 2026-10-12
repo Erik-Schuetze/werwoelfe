@@ -1,0 +1,21 @@
+{
+  "players": [
+    {"id": "p1", "name": "Ada", "personality": "You reason carefully and communicate concisely.", "temperature": 1.5},
+    {"id": "p2", "name": "Babbage", "personality": "You are skeptical and explain your suspicions.", "temperature": 0},
+    {"id": "p3", "name": "Curie", "personality": "You value evidence over confidence."},
+    {"id": "p4", "name": "Dijkstra", "personality": "You analyze incentives and contradictions."},
+    {"id": "p5", "name": "Edsger", "personality": "You are calm and direct."},
+    {"id": "p6", "name": "Franklin", "personality": "You ask targeted questions."},
+    {"id": "p7", "name": "Galileo", "personality": "You are observant and tentative."},
+    {"id": "p8", "name": "Hopper", "personality": "You are pragmatic and candid."}
+  ],
+  "model": {
+    "base_url": "https://api.deepseek.com",
+    "name": "deepseek-flash",
+    "max_retries": 2,
+    "temperature": 1.0,
+    "character_temperature": 1.2,
+    "title_temperature": 1.2,
+    "prompt_style": "classic"
+  }
+}

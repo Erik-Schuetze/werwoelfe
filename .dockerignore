@@ -1,0 +1,16 @@
+# The game image is a pure Go binary; the frontend is a separate image (see web/Dockerfile).
+web
+data
+deploy
+docs
+
+# Never ship secrets or local run artifacts into the build context.
+.git
+.env
+*.env
+config.json
+game-result.json
+
+bin
+coverage.out
+.claude

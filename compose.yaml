@@ -1,0 +1,22 @@
+services:
+  operator:
+    build:
+      context: ./web
+    ports:
+      - "3000:3000"
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?Set DEEPSEEK_API_KEY in your environment or .env file}
+      WERWOELFE_DATA_DIR: /data
+      WERWOELFE_DOCKER_DATA_DIR: ${PWD}/data
+      WERWOELFE_GAME_IMAGE: werwoelfe-game:local
+      WERWOELFE_MAX_CONCURRENT_RUNS: 1
+      WERWOELFE_MAX_RUN_MINUTES: 30
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  game:
+    build:
+      context: .
+    image: werwoelfe-game:local
+    profiles: ["build"]

@@ -1,0 +1,2089 @@
+@import "tailwindcss";
+
+:root {
+  --background: #efdbbf;
+  --surface: #f1eae0;
+  --surface-muted: #e6d4b9;
+  --foreground: #0b162a;
+  --muted: #4d5664;
+  --accent: #1b4bc6;
+  --accent-dark: #0d328f;
+  --accent-soft: #c6d5ff;
+  --danger: #9e2f26;
+  --danger-soft: #f7c5ba;
+  --success: #1f6a45;
+  --success-soft: #bfe2c7;
+  --warning: #82551b;
+  --warning-soft: #f3d49b;
+  --border-width: 2px;
+  --shadow-offset: 8px;
+  /* Reserved block-size of one dialogue slot. Sized for the longest message the
+     engine emits (per-phase caps 320–480 chars) at the narrowest two-column
+     stage: see the dialogue rules for the arithmetic. */
+  --dialogue-slot-block: 12.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  /* Reserve the scrollbar lane so a bar appearing mid-run cannot narrow the
+     page and reflow the stage. */
+  scrollbar-gutter: stable;
+}
+
+body {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(rgb(27 75 198 / 6%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(27 75 198 / 6%) 1px, transparent 1px);
+  background-position: center;
+  background-size: 27px 27px;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+button,
+input,
+textarea,
+.run-card {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.shell {
+  /* The body is a column flex container whose `align-items: stretch` an auto
+     inline margin defeats, so without an explicit width the shell is a
+     shrink-to-fit box: min(max-content, available). A short tally then made the
+     whole page narrow and a long speech made it wide. width: 100% pins it to
+     the container; max-width still caps it and margin: 0 auto still centres. */
+  margin: 0 auto;
+  max-width: 1320px;
+  padding: 3rem 1.5rem 5rem;
+  width: 100%;
+}
+
+.masthead,
+.game-header,
+.section-heading,
+.launch-actions,
+.run-card,
+.player-row,
+.model-fields,
+.tab-list {
+  align-items: center;
+  display: flex;
+}
+
+.masthead,
+.game-header {
+  gap: 2rem;
+  justify-content: space-between;
+  margin-bottom: 3rem;
+}
+
+.masthead h1,
+.game-header h1,
+.section-heading h2,
+.briefing-panel h2 {
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.masthead h1,
+.game-header h1 {
+  font-size: clamp(2.5rem, 6.5vw, 5.15rem);
+  font-weight: 700;
+  letter-spacing: -0.07em;
+  line-height: 0.95;
+  margin: 0.35rem 0 1rem;
+}
+
+.lede {
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.65;
+  max-width: 44rem;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.masthead-stat {
+  background: var(--surface);
+  border: var(--border-width) solid var(--accent);
+  box-shadow: var(--shadow-offset) var(--shadow-offset) 0 var(--accent);
+  display: grid;
+  min-width: 9rem;
+  padding: 1rem 1.4rem;
+  text-align: center;
+}
+
+.masthead-stat strong {
+  color: var(--accent);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 2rem;
+}
+
+.masthead-stat span,
+.run-card span,
+.form-note,
+.seed,
+.live-indicator {
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+
+.launch-grid {
+  display: grid;
+  gap: 2.25rem;
+  grid-template-columns: minmax(0, 2fr) minmax(15rem, 0.8fr);
+}
+
+.panel {
+  background: var(--surface);
+  border: var(--border-width) solid var(--accent);
+  box-shadow: var(--shadow-offset) var(--shadow-offset) 0 var(--accent);
+  padding: 1.4rem;
+}
+
+.section-heading {
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1.35rem;
+}
+
+.section-heading h2,
+.briefing-panel h2 {
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  margin: 0.3rem 0 0;
+}
+
+.tab-list {
+  background: var(--surface-muted);
+  border: var(--border-width) solid var(--accent);
+  gap: 0.15rem;
+  padding: 0.2rem;
+}
+
+.tab-list button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.45rem 0.65rem;
+}
+
+.tab-list button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.tab-list button:focus-visible,
+.icon-button:focus-visible,
+.secondary-button:focus-visible,
+.primary-button:focus-visible,
+.run-card:focus-visible {
+  outline: 3px solid var(--foreground);
+  outline-offset: 3px;
+}
+
+.form-stack,
+.player-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.player-row {
+  background: var(--surface-muted);
+  border: var(--border-width) solid var(--accent);
+  box-shadow: 4px 4px 0 var(--accent);
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.65rem;
+}
+
+.player-row legend {
+  height: 0;
+  overflow: hidden;
+  position: absolute;
+  width: 0;
+}
+
+label {
+  color: var(--foreground);
+  display: grid;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  gap: 0.35rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+input,
+textarea,
+select {
+  background: #fffaf1;
+  border: var(--border-width) solid var(--foreground);
+  border-radius: 0;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-size: 0.9rem;
+  letter-spacing: 0;
+  min-width: 0;
+  padding: 0.55rem 0.6rem;
+  text-transform: none;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 3px 3px 0 var(--accent);
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.player-row label:first-of-type {
+  width: 5rem;
+}
+
+.player-row label:nth-of-type(2) {
+  width: 8rem;
+}
+
+.personality-field {
+  flex: 1;
+}
+
+.icon-button {
+  background: var(--surface);
+  border: var(--border-width) solid var(--accent);
+  box-shadow: 3px 3px 0 var(--accent);
+  color: var(--accent);
+  font-size: 1.15rem;
+  font-weight: 700;
+  height: 2rem;
+  line-height: 1;
+  width: 2rem;
+}
+
+.secondary-button,
+.primary-button,
+.danger-button {
+  border: var(--border-width) solid var(--accent);
+  box-shadow: 4px 4px 0 var(--accent);
+  font-family: var(--font-geist-mono), monospace;
+  font-weight: 700;
+  padding: 0.7rem 1rem;
+}
+
+.secondary-button {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.primary-button {
+  background: var(--accent);
+  color: white;
+}
+
+.danger-button {
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 4px 4px 0 var(--danger);
+  color: white;
+}
+
+.icon-button:not(:disabled):hover,
+.secondary-button:not(:disabled):hover,
+.primary-button:not(:disabled):hover,
+.run-card:hover {
+  box-shadow: 7px 7px 0 var(--accent);
+  transform: translate(-3px, -3px);
+}
+
+.model-fields {
+  gap: 0.8rem;
+}
+
+.model-fields label:first-child {
+  flex: 1;
+}
+
+.model-fields label:not(:first-child) {
+  width: 7rem;
+}
+
+.json-field textarea {
+  font-family: var(--font-geist-mono), monospace;
+  height: 26rem;
+  resize: vertical;
+  scrollbar-gutter: stable;
+}
+
+.launch-actions {
+  border-top: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.form-note,
+.form-error {
+  line-height: 1.5;
+  margin: 1rem 0 0;
+}
+
+.form-error,
+.failure-banner {
+  color: var(--danger);
+}
+
+.briefing-panel {
+  align-self: stretch;
+}
+
+.briefing-panel ul {
+  color: var(--muted);
+  display: grid;
+  gap: 1rem;
+  line-height: 1.45;
+  margin: 1.5rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.history-section {
+  margin-top: 4.25rem;
+}
+
+.run-group {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.archive-group {
+  border-top: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  margin-top: 2.25rem;
+  padding-top: 2.25rem;
+}
+
+.run-group-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.run-group-heading h3 {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.run-group-heading span,
+.run-group-empty {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.75rem;
+}
+
+.run-group-empty {
+  background: var(--surface-muted);
+  border-left: 4px solid var(--accent);
+  margin: 0;
+  padding: 0.85rem 1rem;
+}
+
+.run-list {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.active-run-list {
+  gap: 1.25rem;
+}
+
+.run-card {
+  background: var(--surface);
+  border: var(--border-width) solid var(--accent);
+  box-shadow: 4px 4px 0 var(--accent);
+  color: inherit;
+  justify-content: space-between;
+  padding: 1rem 1.1rem;
+  text-decoration: none;
+}
+
+.run-card-active {
+  border-color: var(--accent-dark);
+  box-shadow: 6px 6px 0 var(--accent);
+}
+
+.run-card-paused {
+  border-color: #503b86;
+  box-shadow: 6px 6px 0 #503b86;
+}
+
+.run-card-summary,
+.run-card-meta {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.run-card-meta {
+  justify-items: end;
+  text-align: right;
+}
+
+.run-card time {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.78rem;
+}
+
+.run-card-link {
+  color: var(--accent);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.status {
+  border: 1px solid currentcolor;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.45rem;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.status-queued {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.status-running {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.status-paused {
+  background: #d9d2ee;
+  color: #503b86;
+}
+
+.status-completed {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.status-failed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.status-cancelled {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.back-link {
+  color: var(--accent);
+  display: inline-block;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 1.2rem;
+  text-decoration-color: currentcolor;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+.back-link:hover {
+  color: var(--accent-dark);
+}
+
+.run-controls {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1.5rem;
+}
+
+.run-controls button {
+  text-align: left;
+  width: 100%;
+}
+
+.follow-latest-button {
+  font-size: 0.78rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.empty-state {
+  background: var(--surface-muted);
+  border: var(--border-width) dashed var(--accent);
+  color: var(--muted);
+  padding: 1.2rem;
+}
+
+.failure-banner {
+  background: var(--danger-soft);
+  border: var(--border-width) solid var(--danger);
+  box-shadow: 5px 5px 0 var(--danger);
+  margin: 0 0 1.75rem;
+  padding: 1rem;
+}
+
+@media (max-width: 850px) {
+  .launch-grid {
+    gap: 2rem;
+    grid-template-columns: 1fr;
+  }
+
+  .follow-latest-button {
+    width: fit-content;
+  }
+
+  .player-row {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .personality-field {
+    flex-basis: calc(100% - 2.75rem);
+  }
+}
+
+@media (max-width: 600px) {
+  .shell {
+    padding: 2rem 1rem 3rem;
+  }
+
+  .masthead,
+  .game-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .masthead-stat {
+    min-width: 8rem;
+  }
+
+  .section-heading,
+  .launch-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .run-card {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .run-card-meta {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .run-group-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .player-row label,
+  .player-row label:first-of-type,
+  .player-row label:nth-of-type(2),
+  .personality-field {
+    flex: 1 1 100%;
+    width: auto;
+  }
+
+  .model-fields {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .model-fields label:last-child {
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .icon-button:not(:disabled):hover,
+  .secondary-button:not(:disabled):hover,
+  .primary-button:not(:disabled):hover,
+  .run-card:hover {
+    transform: none;
+  }
+
+  /* The reveal's CSS transition is disabled here too, not only its JS driver:
+     the words still occupy their space, they simply arrive at once. */
+  .reveal-word {
+    transition: none !important;
+  }
+}
+
+/* ==========================================================================
+   Spectator stage — the show. Colours are semantic, never decorative:
+   --danger for the pack and for kills, --warning for suspicion and the night,
+   --success for the truth that breaks the village's way, --accent for the
+   village's own chrome.
+   ========================================================================== */
+
+.visually-hidden {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* -- truth control -------------------------------------------------------- */
+
+.truth-control {
+  align-items: center;
+  background: var(--surface-muted);
+  border: var(--border-width) solid var(--accent);
+  box-shadow: 5px 5px 0 var(--accent);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  justify-content: space-between;
+  margin-bottom: 2.25rem;
+  padding: 1rem 1.2rem;
+}
+
+.truth-head .eyebrow {
+  margin: 0 0 0.15rem;
+}
+
+.truth-hint {
+  color: var(--muted);
+  margin: 0;
+}
+
+.truth-levels,
+.speed-list {
+  border: 0;
+  display: flex;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.truth-levels button,
+.speed-list button {
+  background: var(--surface);
+  border: var(--border-width) solid var(--accent);
+  color: var(--foreground);
+  cursor: pointer;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-left: -2px;
+  padding: 0.45rem 0.8rem;
+  text-transform: uppercase;
+}
+
+.truth-levels button:first-child,
+.speed-list button:first-child {
+  margin-left: 0;
+}
+
+.truth-levels button.active,
+.speed-list button.active {
+  background: var(--accent);
+  color: white;
+}
+
+.reasoning-toggle {
+  font-size: 0.8rem;
+}
+
+/* -- layout --------------------------------------------------------------- */
+
+/* Two tracks and nothing else. The stage track is minmax(0, 1fr): the 0 floor
+   removes the automatic min-content floor a bare `1fr` would have, so no
+   unbreakable token can widen it, and the rail is a fixed 21rem. The stage
+   column is therefore a function of the viewport alone — identical for a
+   one-line tally and a 480-character speech — and the track shrinks safely
+   through the 851–1100 band instead of collapsing. The old flex row had no
+   fixed basis there, so the rail (content-sized, up to ~1000px) took the row
+   and the stage column fell to 0. */
+.game-layout {
+  align-items: start;
+  display: grid;
+  gap: 2.25rem;
+  grid-template-columns: minmax(0, 1fr) 21rem;
+}
+
+.stage-column {
+  display: grid;
+  gap: 1.75rem;
+  min-width: 0;
+}
+
+/* -- the stage ------------------------------------------------------------ */
+
+.game-stage {
+  background: var(--surface);
+  border: var(--border-width) solid var(--accent);
+  box-shadow: var(--shadow-offset) var(--shadow-offset) 0 var(--accent);
+}
+
+.stage-header {
+  align-items: flex-start;
+  border-bottom: var(--border-width) solid var(--accent);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem 1.2rem;
+}
+
+.stage-header .eyebrow {
+  margin: 0 0 0.2rem;
+}
+
+.stage-scene {
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.stage-counter,
+.beat-count,
+.pileon-count {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.stage-body {
+  /* Reserve the stage's block-size rather than floor it at 12rem: the dialogue
+     pair below reserves one slot each, and the two slots plus their gap and
+     this box's padding set the plate. A beat can grow it, never shrink it, so
+     the seat grid and the scrub strip stay put between beats. */
+  min-block-size: calc(var(--dialogue-slot-block) * 2 + 4rem);
+  padding: 1.5rem 1.2rem;
+}
+
+/* Every scene mode wears a distinct plate, so a change of scene is legible at a
+   glance. Visual momentum falls with the effort of re-placing a display in
+   context, and the documented failure is zones too alike to tell apart at a
+   transition; the fill and an inset rule carry the distinction, never an outer
+   border, so the geometry — and therefore everything below the stage — does not
+   move when the scene changes. */
+.stage-body[data-scene="dialogue"] {
+  background: var(--surface);
+}
+
+.stage-body[data-scene="ballot"] {
+  background: var(--surface);
+  box-shadow: inset 6px 0 0 0 var(--accent);
+}
+
+.stage-body[data-scene="results"] {
+  background: color-mix(in srgb, var(--accent-soft) 30%, var(--surface));
+  box-shadow: inset 6px 0 0 0 var(--accent);
+}
+
+.stage-body[data-scene="night"] {
+  background: var(--foreground);
+  box-shadow: inset 6px 0 0 0 var(--warning);
+  color: var(--surface);
+}
+
+.stage-body[data-scene="night"] .beat-body,
+.stage-body[data-scene="night"] .beat-speaker {
+  color: var(--surface);
+}
+
+.stage-body[data-scene="elimination"] {
+  background: var(--danger-soft);
+  box-shadow: inset 6px 0 0 0 var(--danger);
+}
+
+.stage-body[data-scene="banner"] {
+  background: var(--surface-muted);
+  box-shadow:
+    inset 0 5px 0 0 color-mix(in srgb, var(--accent) 45%, transparent),
+    inset 0 -5px 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--muted);
+}
+
+.stage-empty {
+  color: var(--muted);
+  margin: 0;
+}
+
+.stage-foot {
+  border-top: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--muted);
+  display: flex;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  justify-content: space-between;
+  letter-spacing: 0.05em;
+  padding: 0.6rem 1.2rem;
+  text-transform: uppercase;
+}
+
+.stage-playing {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.stage-paused {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+/* -- beats ---------------------------------------------------------------- */
+
+.beat {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.beat-speaker {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+}
+
+.beat-speaker.is-unknown {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.beat-body {
+  font-size: 1.12rem;
+  line-height: 1.55;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.beat-cut {
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
+  color: var(--warning);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.35rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.beat-thought {
+  border-left: 3px solid var(--muted);
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-style: italic;
+  margin: 0;
+  padding-left: 0.8rem;
+}
+
+.beat-thought span {
+  display: block;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The current speaker's voice, under their name on the live stage. It is one
+   clamped line on purpose: the stage body reserves its block-size so the seat
+   grid and the scrub strip below never move between beats, and a description
+   that ran long would push them down. The ellipsis marks what was cut and the
+   full text is in the cast panel. Muted and italic so it reads as an aside —
+   the prose beneath it is the point and must not be upstaged. min-width lets it
+   shrink inside the beat's grid track rather than widening it. */
+.beat-voice {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: italic;
+  line-height: 1.35;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-chip {
+  border: 1px solid currentcolor;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.08rem 0.35rem;
+  text-transform: uppercase;
+}
+
+.role-chip.is-werewolf {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.role-chip.is-seer {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.role-chip.is-villager {
+  color: var(--muted);
+}
+
+/* pile-on */
+
+.beat-pileon {
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface));
+  border-left: 4px solid var(--accent);
+  padding: 0.9rem 1rem;
+}
+
+.pileon-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.pileon-head .eyebrow {
+  margin: 0;
+}
+
+.pileon-voice {
+  border-top: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  padding-top: 0.6rem;
+}
+
+.pileon-count {
+  margin-left: auto;
+}
+
+.beat-toggle {
+  background: none;
+  border: 1px dashed var(--accent);
+  color: var(--accent-dark);
+  cursor: pointer;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.74rem;
+  font-weight: 700;
+  justify-self: start;
+  padding: 0.35rem 0.6rem;
+  text-transform: uppercase;
+}
+
+/* "Reveal it all now": the same dashed control idiom as .beat-toggle, so it
+   reads as an escape hatch rather than a primary action. */
+.stage-skip {
+  background: none;
+  border: 1px dashed var(--accent);
+  color: var(--accent-dark);
+  cursor: pointer;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.74rem;
+  font-weight: 700;
+  justify-self: start;
+  padding: 0.35rem 0.6rem;
+  text-transform: uppercase;
+}
+
+.stage-skip:hover {
+  background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+}
+
+/* ballots */
+
+.beat-meta {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.beat-meta .eyebrow {
+  margin: 0;
+}
+
+.ballot-tally {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.tally-row {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.tally-count,
+.vote-count {
+  background: var(--accent);
+  color: white;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  min-width: 1.7rem;
+  padding: 0.1rem 0.3rem;
+  text-align: center;
+}
+
+.ballot-list {
+  display: grid;
+  gap: 0.2rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ballot-list li {
+  color: var(--muted);
+  display: flex;
+  font-size: 0.85rem;
+  gap: 0.5rem;
+}
+
+.ballot-voter {
+  color: var(--foreground);
+}
+
+.beat-tally {
+  background: var(--surface-muted);
+  border: var(--border-width) solid var(--accent);
+  padding: 1rem;
+}
+
+.tally-bar {
+  align-items: center;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: 7rem 1fr 2rem;
+}
+
+.tally-bar-name {
+  font-weight: 700;
+}
+
+.tally-track,
+.vote-track {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  display: block;
+  height: 1rem;
+  /* The fill is scaled from its left edge; clip the overflow so it stays inside
+     the track. Safe here because this design has zero radii. */
+  overflow: hidden;
+}
+
+.tally-fill,
+.vote-fill {
+  background: var(--accent);
+  display: block;
+  height: 100%;
+  /* Compositor-only fill: full width, scaled by `transform`, so a landing ballot
+     never triggers layout. */
+  transform-origin: left center;
+  transition: transform 240ms ease;
+  width: 100%;
+  will-change: transform;
+}
+
+/* elimination */
+
+.beat-elimination {
+  background: var(--danger-soft);
+  border: var(--border-width) solid var(--danger);
+  box-shadow: 5px 5px 0 var(--danger);
+  padding: 1.1rem 1.2rem;
+}
+
+.beat-elimination.is-wolf {
+  background: var(--warning-soft);
+  border-color: var(--warning);
+  box-shadow: 5px 5px 0 var(--warning);
+}
+
+.beat-elimination .eyebrow {
+  margin: 0;
+}
+
+.elimination-line {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.elimination-line strong {
+  font-size: 1.5rem;
+}
+
+.elimination-line em {
+  background: var(--danger);
+  color: white;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  text-transform: uppercase;
+}
+
+/* declaration */
+
+/* The commitment that replaced the mandatory final speech. Bordered and shadowed
+   like an elimination — a formal pledge, not a line of dialogue — so it can never
+   be mistaken for one more speech in the runway. */
+
+.beat-declaration {
+  background: color-mix(in srgb, var(--accent-soft) 30%, var(--surface));
+  border: var(--border-width) solid var(--accent);
+  box-shadow: 5px 5px 0 var(--accent);
+  padding: 1rem 1.1rem;
+}
+
+.beat-declaration .eyebrow {
+  margin: 0;
+}
+
+.declaration-vow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.declaration-vow .beat-speaker {
+  font-size: 1.15rem;
+}
+
+.declaration-arrow {
+  color: var(--accent);
+  font-family: var(--font-geist-mono), monospace;
+  font-weight: 700;
+}
+
+.declaration-reason {
+  border-left: 3px solid var(--accent);
+  font-size: 1.05rem;
+  line-height: 1.5;
+  margin: 0;
+  padding-left: 0.8rem;
+}
+
+/* night */
+
+.beat-night {
+  background: var(--foreground);
+  border: var(--border-width) solid var(--foreground);
+  box-shadow: 5px 5px 0 var(--warning);
+  color: var(--surface);
+  padding: 1.1rem 1.2rem;
+}
+
+.beat-night .eyebrow {
+  color: var(--warning-soft);
+  margin: 0;
+}
+
+.beat-night .beat-count {
+  color: var(--warning-soft);
+}
+
+.night-closed {
+  color: var(--surface-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.night-facts {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.night-facts div {
+  display: flex;
+  gap: 0.7rem;
+}
+
+.night-facts dt {
+  color: var(--warning-soft);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  min-width: 6rem;
+  text-transform: uppercase;
+}
+
+.night-facts dd {
+  margin: 0;
+}
+
+.night-note {
+  color: var(--warning-soft);
+  font-size: 0.8rem;
+}
+
+.night-plans {
+  border-top: 1px solid color-mix(in srgb, var(--surface) 30%, transparent);
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0.7rem 0 0;
+}
+
+.night-plans li {
+  color: var(--surface-muted);
+  font-size: 0.9rem;
+}
+
+.night-plans li span {
+  color: var(--warning-soft);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-right: 0.5rem;
+  text-transform: uppercase;
+}
+
+/* small beats */
+
+.beat-pass,
+.beat-text {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.beat-pass p,
+.beat-text p {
+  margin: 0;
+}
+
+.beat-pass .eyebrow {
+  margin: 0 0 0.2rem;
+}
+
+.beat-marker {
+  border-left: 4px solid var(--accent);
+  padding-left: 1rem;
+}
+
+.beat-marker .eyebrow {
+  margin: 0 0 0.2rem;
+}
+
+.beat-marker p:last-child {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+/* Long tokens — a name with no spaces, a pasted string — wrap instead of
+   widening their box. The stage and the rail are pinned by the layout, so a
+   token that cannot break would otherwise spill rather than reflow. */
+.stage-scene,
+.stage-empty,
+.case-suspect,
+.night-facts dd,
+.private-record p {
+  overflow-wrap: anywhere;
+}
+
+/* -- dialogue and reveal -------------------------------------------------- */
+
+.dialogue-pair {
+  display: grid;
+  gap: 1rem;
+}
+
+.dialogue-slot {
+  overflow-wrap: anywhere;
+}
+
+/* The pair is the stage's spine, so each slot reserves a block-size and the
+   pair's height is a constant. Arithmetic: the longest message the engine
+   emits is 480 characters (per-phase caps run 320–480); the stage prose is
+   1.12rem at line-height 1.55, so a line is 1.736rem. On the two-column stage
+   ~857px of text fits at the 1320px shell and ~638px at an 1100px viewport,
+   and a measured 480-character line wraps to 5 lines at 1440 and 6 at 1200 —
+   7 at the tight end — so 7 × 1.736rem = 12.15rem, rounded up to 12.5rem.
+   The reserve therefore holds the cap across the whole two-column range down
+   to ~1100px. The current slot uses min-block-size, so a message that runs
+   long at a narrower column can still grow the stage — the brief's stated
+   fallback — but an ordinary beat can never shrink it. */
+.dialogue-slot.is-current {
+  min-block-size: var(--dialogue-slot-block);
+}
+
+/* The past slot is dimmed and scaled, not faded. opacity: 0.4 would drop it
+   toward illegibility; a muted ink keeps 6.2:1 against the parchment
+   (--muted #4d5664 on --surface #f1eae0) and the 10% smaller face reads as
+   secondary. It is clamped to the same reserved space so the pair's height
+   does not change when the previous line arrives. */
+.dialogue-slot.is-past {
+  block-size: var(--dialogue-slot-block);
+  color: var(--muted);
+  font-size: 0.9em;
+  overflow: hidden;
+  /* The slot's height is fixed so the pair never reflows — but a previous line is
+     often genuinely taller than that reserve. A hard clip swallows the tail in
+     silence: measured up to 120px, once an entire pile-on voice, with nothing to
+     say that anything was removed. The fade marks the continuation, and the whole
+     line stays reachable in the transcript below. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.4rem), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.4rem), transparent);
+}
+
+.dialogue-slot.is-past .beat-body {
+  font-size: 1.008rem; /* 0.9 × the 1.12rem stage prose */
+}
+
+/* The reveal animates opacity only — never width, height or max-height — and a
+   pending word keeps its box, so nothing reflows as the line types on. */
+.reveal-word {
+  transition: opacity 200ms ease;
+}
+
+.reveal-word.is-pending {
+  opacity: 0;
+}
+
+/* A scene change reads as a deliberate act divider: a muted plate, ruled top
+   and bottom, with the signpost set as a quiet centred label. */
+.scene-banner {
+  /* The banner is two parts — an act label and the scene's name — but as inline
+     content they ran together on screen as "PROLOQUETHE GATHERING". Stack them so
+     the signpost reads as a label above a name, which is also how the stage header
+     above it reads. */
+  color: var(--muted);
+  display: grid;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  gap: 0.35rem;
+  justify-items: center;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.scene-banner .eyebrow {
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+}
+
+/* -- the table ------------------------------------------------------------ */
+
+.table-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+}
+
+.seat {
+  background: var(--surface);
+  border: var(--border-width) solid var(--accent);
+  box-shadow: 4px 4px 0 var(--accent);
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.7rem;
+}
+
+.seat-head {
+  align-items: center;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.seat-token {
+  border: 2px solid var(--accent);
+  display: block;
+  height: 0.8rem;
+  width: 0.8rem;
+}
+
+.seat-token[data-alive="true"] {
+  background: var(--accent);
+}
+
+.seat-token[data-alive="false"] {
+  background: repeating-linear-gradient(45deg, var(--muted) 0 2px, transparent 2px 5px);
+  border-color: var(--muted);
+}
+
+.seat-name {
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.sheriff-star {
+  color: var(--warning);
+  margin-left: auto;
+}
+
+.truth-badge {
+  border: 1px solid currentcolor;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  justify-self: start;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.35rem;
+  text-transform: uppercase;
+}
+
+.truth-badge.is-werewolf {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.truth-badge.is-seer {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.truth-badge.is-villager {
+  color: var(--muted);
+}
+
+.truth-badge.is-unknown {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.seat-foot {
+  color: var(--muted);
+  display: grid;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  gap: 0.15rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.seat-eliminated {
+  background: #e6d7c9;
+  border-color: var(--muted);
+  box-shadow: 4px 4px 0 var(--muted);
+  color: var(--muted);
+}
+
+.seat-eliminated .seat-name {
+  text-decoration: line-through;
+}
+
+.seat-speaking {
+  background: var(--accent-soft);
+  box-shadow: 6px 6px 0 var(--accent);
+}
+
+.seat-onblock {
+  border-color: var(--warning);
+  box-shadow: 4px 4px 0 var(--warning);
+}
+
+.seat-block {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.seat-sheriff .seat-name::after {
+  content: "";
+}
+
+/* -- stakes rail ---------------------------------------------------------- */
+
+.stake-rail {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 17rem;
+  width: 21rem;
+}
+
+.rail-block {
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  display: grid;
+  gap: 0.5rem;
+  padding-bottom: 1.1rem;
+}
+
+.rail-block:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.rail-block .eyebrow {
+  margin: 0;
+}
+
+.case-suspect {
+  align-items: center;
+  display: flex;
+  font-size: 1.2rem;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.case-confidence {
+  border: 1px solid currentcolor;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 0.1rem 0.35rem;
+  text-transform: uppercase;
+}
+
+.case-confidence.is-high {
+  color: var(--danger);
+}
+
+.case-confidence.is-medium {
+  color: var(--warning);
+}
+
+.case-confidence.is-low {
+  color: var(--muted);
+}
+
+.case-detail,
+.truth-source {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin: 0;
+}
+
+.gap-chip {
+  border: var(--border-width) solid var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0;
+  padding: 0.55rem 0.6rem;
+}
+
+.gap-chip.is-on {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.gap-chip.is-off {
+  background: var(--warning-soft);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.gap-chip.is-clear {
+  background: var(--success-soft);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.gap-chip.is-unknown {
+  color: var(--muted);
+}
+
+.vote-label {
+  align-items: center;
+  display: flex;
+  font-weight: 700;
+  gap: 0.5rem;
+  justify-content: space-between;
+  margin: 0;
+}
+
+.vote-label span {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.vote-row {
+  align-items: center;
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 5.5rem 1fr 1.8rem;
+}
+
+.vote-name {
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vote-track {
+  height: 0.85rem;
+}
+
+.official-count {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  margin: 0;
+}
+
+.ledger {
+  display: grid;
+  gap: 0.7rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ledger-night {
+  border-left: 3px solid var(--warning);
+  padding-left: 0.7rem;
+}
+
+.ledger-night header {
+  align-items: baseline;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.ledger-night header span {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.ledger-night p {
+  display: flex;
+  font-size: 0.88rem;
+  gap: 0.5rem;
+  margin: 0.15rem 0 0;
+}
+
+.ledger-night p span {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  min-width: 2.6rem;
+  text-transform: uppercase;
+}
+
+.run-facts-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.run-facts-list div {
+  display: flex;
+  font-size: 0.85rem;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+
+.run-facts-list dt {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.run-facts-list dd {
+  margin: 0;
+  text-align: right;
+}
+
+/* -- scrub strip and playback --------------------------------------------- */
+
+.scrub-panel {
+  margin-top: 2.25rem;
+}
+
+.scrub-strip {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.scrub-act-label {
+  color: var(--accent-dark);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.4rem;
+  text-transform: uppercase;
+}
+
+.scrub-beats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.scrub-beat {
+  background: var(--surface-muted);
+  border: 1px solid var(--accent);
+  cursor: pointer;
+  height: 1.5rem;
+  padding: 0;
+  width: 1rem;
+}
+
+.scrub-beat.is-played {
+  background: var(--accent);
+}
+
+.scrub-beat.is-current {
+  background: var(--warning);
+  box-shadow: 0 0 0 2px var(--foreground);
+}
+
+.scrub-beat.is-dramatic {
+  height: 1.5rem;
+  width: 1.7rem;
+}
+
+.scrub-beat.is-future {
+  background: var(--surface);
+}
+
+.playback-bar {
+  align-items: center;
+  border-top: var(--border-width) solid var(--accent);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  padding-top: 1.1rem;
+}
+
+.playback-controls {
+  align-items: center;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.play-button {
+  min-width: 5rem;
+}
+
+.beat-progress {
+  background: var(--surface-muted);
+  border: 1px solid var(--accent);
+  flex: 1;
+  height: 1rem;
+  min-width: 6rem;
+  /* Clip the scaled fill to the track. Zero radii, so no corner caveat. */
+  overflow: hidden;
+}
+
+.beat-progress-fill {
+  background: var(--accent-dark);
+  display: block;
+  height: 100%;
+  /* The RAF rewrites this every ~100ms, so scaleX keeps it off the layout path
+     — but it must NOT be transitioned: the value changes faster than any easing
+     would settle, so the bar would lag the beat timer and glide on every reset.
+     The vote and tally fills do transition; this one snaps. */
+  transform-origin: left center;
+  transition: none;
+  width: 100%;
+  will-change: transform;
+}
+
+/* The one-line keyboard hint. Deliberately quieter than the controls: it is a
+   footnote in the same muted monospace idiom as `.stage-counter`. */
+.playback-keys {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin-left: auto;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.drift-chip {
+  font-size: 0.78rem;
+}
+
+.live-pill {
+  border: var(--border-width) solid var(--muted);
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.4rem 0.6rem;
+  text-transform: uppercase;
+}
+
+.live-pill.is-live {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+/* -- cast ----------------------------------------------------------------- */
+
+.cast-panel {
+  margin-top: 2.25rem;
+}
+
+/* One row per player, in seat order: the name in the same uppercase-mono
+   micro-label the night plans give a speaker, the voice beneath it in the
+   reading prose. A hairline rule between rows, as in the transcript. */
+.cast-list {
+  display: grid;
+  margin: 0;
+}
+
+.cast-row {
+  border-top: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem 0;
+}
+
+.cast-name {
+  color: var(--accent-dark);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cast-voice {
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* The honest empty state: a run whose characters were never generated says so
+   rather than printing a column of blank rows. */
+.cast-empty {
+  color: var(--muted);
+  margin: 0;
+}
+
+/* -- log ------------------------------------------------------------------ */
+
+.log-panel {
+  margin-top: 2.25rem;
+}
+
+.log-controls {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.log-controls span {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.log-scroll {
+  background: var(--surface-muted);
+  border: var(--border-width) solid var(--accent);
+  display: grid;
+  gap: 1.25rem;
+  max-height: 46rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+.log-act h3 {
+  background: var(--accent);
+  color: white;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.7rem;
+  text-transform: uppercase;
+}
+
+.log-beat {
+  border-top: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: 2.4rem 1fr;
+  padding: 0.7rem 0;
+}
+
+.log-beat.is-current {
+  background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+}
+
+.log-seq {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+}
+
+.log-beat .beat-body {
+  font-size: 0.95rem;
+}
+
+.private-record {
+  border: var(--border-width) dashed var(--danger);
+  margin-top: 1.25rem;
+  padding: 0.8rem 1rem;
+}
+
+.private-record summary {
+  color: var(--danger);
+  cursor: pointer;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.private-record ol {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1rem 0 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.private-record li {
+  border-left: 3px solid var(--danger);
+  display: grid;
+  gap: 0.2rem;
+  grid-template-columns: 2.4rem auto 1fr;
+  padding-left: 0.6rem;
+}
+
+.private-record code {
+  color: var(--danger);
+  font-size: 0.76rem;
+}
+
+.private-kind {
+  color: var(--muted);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.7rem;
+}
+
+.private-record p {
+  font-size: 0.88rem;
+  grid-column: 2 / -1;
+  margin: 0;
+}
+
+@media (max-width: 1100px) {
+  .stake-rail {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 850px) {
+  /* Same stacking point as before; the mechanism is now a track change rather
+     than flex-direction. */
+  .game-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stake-rail {
+    width: 100%;
+  }
+
+  .truth-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .truth-levels,
+  .speed-list {
+    flex-wrap: wrap;
+  }
+
+  .scrub-beat,
+  .scrub-beat.is-dramatic {
+    height: 1.1rem;
+    width: 0.7rem;
+  }
+}
