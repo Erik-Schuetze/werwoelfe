@@ -122,7 +122,15 @@ export function narrationFor(beat: Beat, context: NarrationContext): NarrationLi
       // Blind mode is the whole point of the gate: the card collapses the night to
       // one line, and the audio must collapse with it or the truth leaks by ear.
       if (context.level === "blind") {
-        return [{ speakerId: null, text: "Something moves in the forest. The village sleeps." }];
+        const lines: NarrationLine[] = [
+          { speakerId: null, text: "Something moves in the forest. The village sleeps." },
+        ];
+        // The card's one exception, spoken the same way it is drawn: that a
+        // reading happened, never who read whom or what it found.
+        if (beat.checks.length > 0) {
+          lines.push({ speakerId: null, text: "The Fortune Teller read a role in secret." });
+        }
+        return lines;
       }
       const lines: NarrationLine[] = [{ speakerId: null, text: `Night ${beat.night}.` }];
       // The card names the pack from raw ids, and so do we — this is the one line
@@ -135,8 +143,12 @@ export function narrationFor(beat: Beat, context: NarrationContext): NarrationLi
         lines.push({ speakerId: null, text: `The pack chose ${beat.mealVictim.name}.` });
       }
       for (const check of beat.checks) {
-        // The card falls back to "?" for an unattributed reading; match it.
-        lines.push({ speakerId: null, text: `${check.target?.name ?? "?"} is ${check.result}.` });
+        // The card falls back to "?" for an unattributed reading; match it. A
+        // reading has two ends, and the card names both, so this does too.
+        lines.push({
+          speakerId: null,
+          text: `${check.reader?.name ?? "?"} read ${check.target?.name ?? "?"}: ${check.result}.`,
+        });
       }
       return lines;
     }

@@ -21,19 +21,24 @@ import type { Beat } from "@/lib/beats";
  *
  * THE KEY DESIGN DECISION: the reveal rate EQUALS the reading rate. Words
  * arrive no faster than they can be read, so the eye is never behind and the
- * post-reveal hold only needs to be a short settle. Do NOT cap the reveal and
- * then add a long hold — that is what makes typewriter effects annoying. The
- * previous version of this file got that wrong: its own comment admitted it
- * targeted "a comfortable skim, not full reading speed" at 3–5 s per beat.
- * That was the bug.
+ * post-reveal hold is a settle, not a second reading period. Do NOT cap the
+ * reveal and then add a long hold to compensate — that is what makes typewriter
+ * effects annoying. The previous version of this file got that wrong: its own
+ * comment admitted it targeted "a comfortable skim, not full reading speed" at
+ * 3–5 s per beat. That was the bug.
+ *
+ * The settle is deliberately not instant, though. A line that clears on the same
+ * frame as its last character gives the eye nowhere to rest, and the cut marker
+ * — which only lands with the final word — would never be seen at all. So a
+ * completed line holds for 1–2 s before the stage moves on.
  */
 
 export const READING = {
   cps: 15, // BBC lower bound ~160 wpm; reveal rate == reading rate
   minRevealMs: 700, // short lines still feel typed
-  settlePerChar: 4, // brief hold after the last word lands
-  minSettleMs: 600,
-  maxSettleMs: 1500,
+  settlePerChar: 4, // longer lines are worth a longer settle
+  minSettleMs: 1000, // ...but a completed line always holds at least a second
+  maxSettleMs: 2000, // ...and never longer than two
 } as const;
 
 /**

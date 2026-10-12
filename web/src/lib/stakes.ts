@@ -70,7 +70,7 @@ export type LedgerEntry = {
   wolves: string[];
   mealVictim: SpeakerRef | null;
   mealTied: boolean;
-  checks: { target: SpeakerRef | null; result: string }[];
+  checks: { reader: SpeakerRef | null; target: SpeakerRef | null; result: string }[];
   plans: { speaker: SpeakerRef | null; body: string }[];
   deliberationMs: number | null;
 };

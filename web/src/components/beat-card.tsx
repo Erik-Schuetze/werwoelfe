@@ -135,11 +135,28 @@ function SpeakerTag({
   );
 }
 
+/**
+ * Has this prose finished typing on?
+ *
+ * `null` is the stage's "render plain" value — instant speed, reduced motion, or
+ * a voice the reader expanded out past the reveal budget — and it means the whole
+ * line is in the DOM from the first paint, so it counts as finished.
+ */
+function isRevealed(text: string, revealed: number | null): boolean {
+  return revealed === null || revealed >= text.length;
+}
+
 function Body({ voice, reveal }: { voice: Voice; reveal: number | null }) {
+  // The cut marker belongs to the *end* of the sentence, so it lands with the
+  // last word rather than sitting at the head of a line that has not been written
+  // yet — a reader who sees "cut off" before the text it annotates reads the
+  // message as cut short before it even began.
   return (
     <p className="beat-body">
       <RevealText text={voice.body} revealed={reveal} />
-      {voice.truncated ? <span className="beat-cut">cut off</span> : null}
+      {voice.truncated && isRevealed(voice.body, reveal) ? (
+        <span className="beat-cut">cut off</span>
+      ) : null}
     </p>
   );
 }
@@ -319,6 +336,17 @@ function Night({ props, beat }: { props: BeatCardProps; beat: Extract<Beat, { ki
           <span className="eyebrow">Night {beat.night}</span>
         </header>
         <p className="night-closed">Something moves in the forest. The village sleeps.</p>
+        {/* Blind keeps the night's *existence* but not its contents: the village
+            knows a Fortune Teller is in play and that a reading is a real move, so
+            the box says one happened without saying who read whom, or what. */}
+        {beat.checks.length > 0 ? (
+          <dl className="night-facts">
+            <div>
+              <dt>The reading</dt>
+              <dd>The Fortune Teller read a role in secret.</dd>
+            </div>
+          </dl>
+        ) : null}
       </article>
     );
   }
@@ -342,11 +370,11 @@ function Night({ props, beat }: { props: BeatCardProps; beat: Extract<Beat, { ki
             </dd>
           </div>
         ) : null}
-        {beat.checks.map((check) => (
-          <div key={check.target?.id ?? check.target?.name ?? "check"}>
+        {beat.checks.map((check, index) => (
+          <div key={`${check.reader?.id ?? "?"}-${check.target?.id ?? index}`}>
             <dt>The reading</dt>
             <dd>
-              {check.target?.name ?? "?"} is {check.result}
+              {check.reader?.name ?? "?"} read {check.target?.name ?? "?"} — {check.result}
             </dd>
           </div>
         ))}
@@ -406,7 +434,10 @@ function Declaration({
       {beat.body ? (
         <p className="declaration-reason">
           <RevealText text={beat.body} revealed={props.reveal ?? null} />
-          {beat.truncated ? <span className="beat-cut">cut off</span> : null}
+          {/* Same rule as `Body`: the marker lands with the last word. */}
+          {beat.truncated && isRevealed(beat.body, props.reveal ?? null) ? (
+            <span className="beat-cut">cut off</span>
+          ) : null}
         </p>
       ) : null}
     </article>

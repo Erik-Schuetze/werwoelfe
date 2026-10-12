@@ -117,7 +117,7 @@ export type NightBeat = BeatBase & {
   mealVictim: SpeakerRef | null;
   mealTied: boolean;
   mealAt: string | null;
-  checks: { target: SpeakerRef | null; result: string }[];
+  checks: { reader: SpeakerRef | null; target: SpeakerRef | null; result: string }[];
   plans: { speaker: SpeakerRef | null; body: string }[];
 };
 
@@ -440,6 +440,11 @@ export function buildBeats(events: GameEvent[], players: GamePlayer[]): Beat[] {
     const id = index.byName.get(name);
     return id ? { id, name } : { id: name, name };
   };
+  // The same ref, resolved from an id instead of a name. Events that address a
+  // player by id — a reading's `recipients`, which is the Fortune Teller alone —
+  // still need a name to render, and this is the only other direction of lookup.
+  const refOfId = (id: string | null): SpeakerRef | null =>
+    id ? { id, name: index.byId.get(id) ?? id } : null;
 
   const closeTail = (): void => {
     const beat = tail();
@@ -613,7 +618,16 @@ export function buildBeats(events: GameEvent[], players: GamePlayer[]): Beat[] {
       switch (kind) {
         case "investigation_result": {
           const parsed = parseInvestigation(event.message);
-          if (parsed) night.checks.push({ target: refOf(parsed.name), result: parsed.result });
+          if (parsed) {
+            // The reading is addressed to the Fortune Teller alone, so `recipients`
+            // is who did it — the half of "who read whom" that the message text
+            // does not carry.
+            night.checks.push({
+              reader: refOfId(event.recipients[0] ?? null),
+              target: refOf(parsed.name),
+              result: parsed.result,
+            });
+          }
           break;
         }
         case "meal_chosen":

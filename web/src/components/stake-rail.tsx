@@ -42,6 +42,8 @@ export function StakeRail({
   controls,
 }: Props) {
   const latestNight = ledger[ledger.length - 1];
+  // How many readings the watched night(s) contain — the only fact blind is told.
+  const readings = ledger.reduce((total, entry) => total + entry.checks.length, 0);
   return (
     <aside className="panel stake-rail">
       <section className="rail-block">
@@ -105,7 +107,15 @@ export function StakeRail({
             {level === "blind" ? "Nothing is known about the nights." : "Night has not fallen yet."}
           </p>
         ) : level === "blind" ? (
-          <p className="case-detail">Something has happened in the forest, {ledger.length} times.</p>
+          <>
+            <p className="case-detail">Something has happened in the forest, {ledger.length} times.</p>
+            {/* Blind still gets the night's shape, so it can see that a Fortune
+                Teller is alive and working, without the who, the whom or the
+                answer — those are the whole of what a reading reveals. */}
+            {readings > 0 ? (
+              <p className="case-detail">The Fortune Teller has read {readings} role{readings === 1 ? "" : "s"} in secret.</p>
+            ) : null}
+          </>
         ) : (
           <ul className="ledger">
             {ledger.map((entry) => (
@@ -129,10 +139,10 @@ export function StakeRail({
                     {entry.mealTied ? " (tiebreak)" : ""}
                   </p>
                 ) : null}
-                {entry.checks.map((check) => (
-                  <p key={check.target?.id ?? check.target?.name ?? "check"}>
+                {entry.checks.map((check, index) => (
+                  <p key={`${check.reader?.id ?? "?"}-${check.target?.id ?? index}`}>
                     <span>read</span>
-                    {check.target?.name ?? "?"} — {check.result}
+                    {check.reader?.name ?? "?"} → {check.target?.name ?? "?"} — {check.result}
                   </p>
                 ))}
               </li>
