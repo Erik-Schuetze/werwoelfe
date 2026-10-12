@@ -18,6 +18,24 @@ services:
       - ./data:/data
       - /var/run/docker.sock:/var/run/docker.sock
 
+  # The public audience instance: the same image with WERWOELFE_MODE=viewer, which
+  # serves only /viewer and /api/viewer/* and 404s everything else. It deliberately
+  # has no ./data volume, no Docker socket, and no DEEPSEEK_API_KEY — it holds no game
+  # state, cannot start or mutate a run, and has nothing worth leaking if it is ever
+  # exposed. It reaches the operator's read-only /api/public/* API over the Compose
+  # network and serves a degraded panel when that API is down. See "Public viewer" in
+  # the README. Start it with `docker compose up operator viewer`.
+  viewer:
+    build:
+      context: ./web
+    ports:
+      - "3001:3000"
+    environment:
+      WERWOELFE_MODE: viewer
+      WERWOELFE_OPERATOR_URL: http://operator:3000
+    depends_on:
+      - operator
+
   game:
     build:
       context: .

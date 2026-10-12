@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import type { GameConfigInput, GameSummary, LaunchGameInput, PlayerInput } from "@/lib/game";
-import { runTitle } from "@/lib/run-title";
-import { LocalTime } from "@/components/local-time";
-import { StatusBadge } from "@/components/status-badge";
+import type { DeploymentMode } from "@/lib/mode";
+import { gamePath } from "@/lib/viewer-routes";
+import { RunCard } from "@/components/run-card";
 
 // The guided form edits the shared engine config plus a launch-only seed. Per-player
 // temperature already rides on PlayerInput; the seed is stripped out of `config` and sent as
@@ -102,29 +101,11 @@ function addPlayer(players: PlayerInput[]): PlayerInput[] {
   ];
 }
 
-function RunCard({ game, active = false }: { game: GameSummary; active?: boolean }) {
-  const title = runTitle(game);
-
-  return (
-    <Link className={`run-card${active ? " run-card-active" : ""}${game.status === "paused" ? " run-card-paused" : ""}`} href={`/games/${game.id}`}>
-      <div className="run-card-summary">
-        <StatusBadge status={game.status} />
-        <strong>{title}</strong>
-        <span>{game.playerCount} players · {game.eventCount} events</span>
-      </div>
-      <div className="run-card-meta">
-        {game.createdAt ? <LocalTime value={game.createdAt} /> : <span>Not started</span>}
-        <span className="run-card-link">Open game <span aria-hidden="true">→</span></span>
-      </div>
-    </Link>
-  );
-}
-
-export function Dashboard({ initialGames }: { initialGames: GameSummary[] }) {
+export function Dashboard({ initialGames, mode = "operator" }: { initialGames: GameSummary[]; mode?: DeploymentMode }) {
   const [games, setGames] = useState(initialGames);
   const router = useRouter();
   const [config, setConfig] = useState<FormConfig>(initialConfig);
-  const [mode, setMode] = useState<"form" | "json">("form");
+  const [configMode, setConfigMode] = useState<"form" | "json">("form");
   const [jsonConfig, setJsonConfig] = useState(() => JSON.stringify(initialConfig(), null, 2));
   const [error, setError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
@@ -209,7 +190,7 @@ export function Dashboard({ initialGames }: { initialGames: GameSummary[] }) {
   }
 
   function exportConfig() {
-    const source = mode === "json" ? jsonConfig : JSON.stringify(config, null, 2);
+    const source = configMode === "json" ? jsonConfig : JSON.stringify(config, null, 2);
     const blob = new Blob([source], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -222,7 +203,7 @@ export function Dashboard({ initialGames }: { initialGames: GameSummary[] }) {
   async function launch() {
     setError(null);
     let launchConfig: FormConfig = config;
-    if (mode === "json") {
+    if (configMode === "json") {
       try {
         launchConfig = JSON.parse(jsonConfig) as FormConfig;
       } catch {
@@ -276,19 +257,19 @@ export function Dashboard({ initialGames }: { initialGames: GameSummary[] }) {
             </div>
             <div className="tab-list" role="group" aria-label="Configuration source">
               <button
-                aria-pressed={mode === "form"}
-                className={mode === "form" ? "active" : ""}
-                onClick={() => setMode("form")}
+                aria-pressed={configMode === "form"}
+                className={configMode === "form" ? "active" : ""}
+                onClick={() => setConfigMode("form")}
                 type="button"
               >
                 Guided form
               </button>
               <button
-                aria-pressed={mode === "json"}
-                className={mode === "json" ? "active" : ""}
+                aria-pressed={configMode === "json"}
+                className={configMode === "json" ? "active" : ""}
                 onClick={() => {
                   setJsonConfig(JSON.stringify(config, null, 2));
-                  setMode("json");
+                  setConfigMode("json");
                 }}
                 type="button"
               >
@@ -297,7 +278,7 @@ export function Dashboard({ initialGames }: { initialGames: GameSummary[] }) {
             </div>
           </div>
 
-          {mode === "form" ? (
+          {configMode === "form" ? (
             <div className="form-stack">
               <button className="secondary-button" onClick={randomizePersonalities} type="button">
                 Randomize all personalities
@@ -478,7 +459,7 @@ export function Dashboard({ initialGames }: { initialGames: GameSummary[] }) {
                 <p className="run-group-empty">No active games. Launch a new village when you are ready.</p>
               ) : (
                 <div className="run-list active-run-list">
-                  {activeGames.map((game) => <RunCard active game={game} key={game.id} />)}
+                  {activeGames.map((game) => <RunCard active game={game} href={gamePath(mode, game.id)} key={game.id} />)}
                 </div>
               )}
             </div>
@@ -489,7 +470,7 @@ export function Dashboard({ initialGames }: { initialGames: GameSummary[] }) {
                   <span>{archivedGames.length} saved</span>
                 </div>
                 <div className="run-list">
-                  {archivedGames.map((game) => <RunCard game={game} key={game.id} />)}
+                  {archivedGames.map((game) => <RunCard game={game} href={gamePath(mode, game.id)} key={game.id} />)}
                 </div>
               </div>
             ) : null}

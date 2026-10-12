@@ -316,6 +316,18 @@ async function sweepRuns(runtime: GameRuntime): Promise<void> {
       continue;
     }
 
+    // Ingest the run's stream every tick, so a live game's events are current in the database even
+    // when no one has the operator's detail page open. Without this the only thing that ingests a
+    // live run is `refreshGame` on the detail GET, which would force the public read-only endpoint
+    // to ingest to stay live — and then public load would reach this process's write path. The call
+    // is idempotent and does not throw, but it is guarded like its neighbours so one unreadable
+    // stream skips a tick rather than ending the sweep.
+    try {
+      await ingestEvents(game.id);
+    } catch (error) {
+      console.error(`[werwoelfe] could not ingest events for run ${game.id}: ${safeError(error)}`);
+    }
+
     let observation: RunObservation;
     try {
       observation = await runtime.observeRun(game.id);

@@ -289,6 +289,18 @@ export function listGames(): GameSummary[] {
     .all() as GameRow[]).map(toSummary);
 }
 
+/**
+ * The games the public index may show: `listGames()` without the runs that failed or were stopped.
+ *
+ * The audience sees the games that happened, not the console's casualties — a run that died to an
+ * operator bug or was cancelled mid-deployment is the operator's business, not a spectator's. This
+ * is a presentation filter, not a security boundary: the same detail endpoint's 404 for those two
+ * statuses is what keeps a direct link from leaking them back in.
+ */
+export function listPublicGames(): GameSummary[] {
+  return listGames().filter((game) => game.status !== "failed" && game.status !== "cancelled");
+}
+
 export function getGameDetail(id: string): GameDetail | null {
   const row = getGameRow(id);
   if (!row) {

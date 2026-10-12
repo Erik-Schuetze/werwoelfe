@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { GameDetail as GameDetailData } from "@/lib/game";
+import type { DeploymentMode } from "@/lib/mode";
 import { buildBeats, buildPlayerIndex, groupBeatsByAct } from "@/lib/beats";
 import { buildCast } from "@/lib/cast";
 import { alignmentGap, deriveBeliefs, deriveGroundTruth } from "@/lib/truth";
@@ -13,6 +14,7 @@ import { usePlayback } from "@/lib/use-playback";
 import { useNarration } from "@/lib/use-narration";
 import { update as updatePreferences, type Speed } from "@/lib/preferences";
 import { runTitle } from "@/lib/run-title";
+import { gameApiPath, homePath } from "@/lib/viewer-routes";
 import { BeatCard } from "@/components/beat-card";
 import { CastPanel } from "@/components/cast-panel";
 import { GameStage } from "@/components/game-stage";
@@ -31,10 +33,24 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
+export function GameDetail({
+  initialGame,
+  mode = "operator",
+  pollMs = 1500,
+}: {
+  initialGame: GameDetailData;
+  mode?: DeploymentMode;
+  pollMs?: number;
+}) {
   const router = useRouter();
   const [game, setGame] = useState(initialGame);
   const preferences = usePreferences();
+
+  // A viewer's browser can still hold "director" from a previous visit to the operator
+  // console, and the payload carries the private events either way, so the level is clamped
+  // here rather than trusted: one value drives narration, every panel and every gate below.
+  const level = mode === "viewer" && preferences.level === "director" ? "spectator" : preferences.level;
+
   const [updating, setUpdating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
@@ -75,7 +91,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
     playing,
     speed,
     enabled: preferences.voice,
-    level: preferences.level,
+    level,
     reasoning: preferences.reasoning,
     roster: seatOrder,
     nameOf,
@@ -107,8 +123,8 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
   }, [truth, caseFile, beats, railIndex]);
 
   const seats = useMemo(
-    () => seatStates(game.players, beats, railIndex, caseFile?.suspect?.id ?? null, preferences.level),
-    [game.players, beats, railIndex, caseFile, preferences.level],
+    () => seatStates(game.players, beats, railIndex, caseFile?.suspect?.id ?? null, level),
+    [game.players, beats, railIndex, caseFile, level],
   );
   const acts = useMemo(() => groupBeatsByAct(beats), [beats]);
 
@@ -147,7 +163,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
     setUpdating(true);
     setActionError(null);
     try {
-      const response = await fetch(`/api/games/${game.id}`, { cache: "no-store" });
+      const response = await fetch(gameApiPath(mode, game.id), { cache: "no-store" });
       const payload = (await response.json()) as { error?: string; game?: GameDetailData };
       if (!response.ok || !payload.game) {
         setActionError(payload.error || "Could not refresh the game.");
@@ -159,14 +175,14 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
     } finally {
       setUpdating(false);
     }
-  }, [game.id]);
+  }, [game.id, mode]);
 
   async function stop(): Promise<void> {
     if (!window.confirm("Stop this game? It cannot be resumed.")) return;
     setUpdating(true);
     setActionError(null);
     try {
-      const response = await fetch(`/api/games/${game.id}`, { method: "DELETE" });
+      const response = await fetch(gameApiPath(mode, game.id), { method: "DELETE" });
       const payload = (await response.json()) as { error?: string; game?: GameDetailData };
       if (!response.ok || !payload.game) {
         setActionError(payload.error || "Could not stop the game.");
@@ -184,7 +200,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
     setUpdating(true);
     setActionError(null);
     try {
-      const response = await fetch(`/api/games/${game.id}`, {
+      const response = await fetch(gameApiPath(mode, game.id), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action }),
@@ -207,7 +223,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
     setUpdating(true);
     setActionError(null);
     try {
-      const response = await fetch(`/api/games/${game.id}`, { method: "POST" });
+      const response = await fetch(gameApiPath(mode, game.id), { method: "POST" });
       const payload = (await response.json()) as { error?: string; game?: GameDetailData };
       if (!response.ok || !payload.game) {
         setActionError(payload.error || "Could not restart the game.");
@@ -223,9 +239,9 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
 
   useEffect(() => {
     if (!active) return;
-    const interval = window.setInterval(() => void refresh(), 1_500);
+    const interval = window.setInterval(() => void refresh(), pollMs);
     return () => window.clearInterval(interval);
-  }, [active, refresh]);
+  }, [active, refresh, pollMs]);
 
   useEffect(() => {
     if (!logOpen || !followLatest) return;
@@ -341,7 +357,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
     <main className="shell game-page">
       <header className="game-header">
         <div>
-          <Link className="back-link" href="/">
+          <Link className="back-link" href={homePath(mode)}>
             ← All games
           </Link>
           <p className="eyebrow">Village #{game.id.slice(0, 8)}</p>
@@ -361,7 +377,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
         </p>
       ) : null}
 
-      <TruthControl />
+      <TruthControl levels={mode === "viewer" ? ["blind", "spectator"] : undefined} />
 
       <section className="game-layout">
         <div className="stage-column">
@@ -371,7 +387,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
             beatNumber={stageIndex + 1}
             caughtUp={caughtUp}
             expandedKeys={expandedKeys}
-            level={preferences.level}
+            level={level}
             nameOf={nameOf}
             onToggle={toggleExpanded}
             playing={playing}
@@ -385,7 +401,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
           />
 
           <PlayerTable
-            level={preferences.level}
+            level={level}
             onBlockId={caseFile?.suspect?.id ?? null}
             seatOrder={seatOrder}
             seats={seats}
@@ -397,39 +413,43 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
         <StakeRail
           caseOnTable={caseFile}
           controls={
-            <>
-              <button className="secondary-button" disabled={updating} onClick={() => void refresh()} type="button">
-                {updating ? "Updating…" : "Refresh"}
-              </button>
-              {canPause ? (
-                <button
-                  className="secondary-button"
-                  disabled={updating}
-                  onClick={() => void updateGameState("pause")}
-                  type="button"
-                >
-                  Pause the game
+            // Every control here mutates the run, so the audience is handed none of them and
+            // the rail's "Run" block shows facts alone.
+            mode === "viewer" ? null : (
+              <>
+                <button className="secondary-button" disabled={updating} onClick={() => void refresh()} type="button">
+                  {updating ? "Updating…" : "Refresh"}
                 </button>
-              ) : null}
-              {canResume ? (
-                <button
-                  className="primary-button"
-                  disabled={updating}
-                  onClick={() => void updateGameState("resume")}
-                  type="button"
-                >
-                  Resume the game
+                {canPause ? (
+                  <button
+                    className="secondary-button"
+                    disabled={updating}
+                    onClick={() => void updateGameState("pause")}
+                    type="button"
+                  >
+                    Pause the game
+                  </button>
+                ) : null}
+                {canResume ? (
+                  <button
+                    className="primary-button"
+                    disabled={updating}
+                    onClick={() => void updateGameState("resume")}
+                    type="button"
+                  >
+                    Resume the game
+                  </button>
+                ) : null}
+                {active ? (
+                  <button className="danger-button" disabled={updating} onClick={() => void stop()} type="button">
+                    Stop the game
+                  </button>
+                ) : null}
+                <button className="secondary-button" disabled={updating} onClick={() => void restart()} type="button">
+                  Restart with the same setup
                 </button>
-              ) : null}
-              {active ? (
-                <button className="danger-button" disabled={updating} onClick={() => void stop()} type="button">
-                  Stop the game
-                </button>
-              ) : null}
-              <button className="secondary-button" disabled={updating} onClick={() => void restart()} type="button">
-                Restart with the same setup
-              </button>
-            </>
+              </>
+            )
           }
           facts={
             <dl className="run-facts-list">
@@ -437,27 +457,35 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
                 <dt>Started</dt>
                 <dd>{game.startedAt ? <LocalTime value={game.startedAt} /> : "Waiting for Docker"}</dd>
               </div>
-              <div>
-                <dt>Model</dt>
-                <dd>{game.model.name || "deepseek-flash"}</dd>
-              </div>
-              <div>
-                <dt>Temperature</dt>
-                <dd>{game.model.temperature ?? 1.0}</dd>
-              </div>
+              {/* The sampler's settings and the launch seed are how the run was set up, which
+                  is the operator's business; the audience gets what happened, not how. */}
+              {mode === "viewer" ? null : (
+                <>
+                  <div>
+                    <dt>Model</dt>
+                    <dd>{game.model.name || "deepseek-flash"}</dd>
+                  </div>
+                  <div>
+                    <dt>Temperature</dt>
+                    <dd>{game.model.temperature ?? 1.0}</dd>
+                  </div>
+                </>
+              )}
               <div>
                 <dt>Events</dt>
                 <dd>{game.eventCount}</dd>
               </div>
-              <div>
-                <dt>Seed</dt>
-                <dd>{game.seed}</dd>
-              </div>
+              {mode === "viewer" ? null : (
+                <div>
+                  <dt>Seed</dt>
+                  <dd>{game.seed}</dd>
+                </div>
+              )}
             </dl>
           }
           gap={gap}
           ledger={ledger}
-          level={preferences.level}
+          level={level}
           nameOf={nameOf}
           truth={truth}
           voteBoard={voteBoard}
@@ -470,7 +498,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
             <p className="eyebrow">The run so far</p>
             <h2>Where you are</h2>
           </div>
-          {active ? <span className="live-indicator">Refreshing every 1.5 seconds</span> : null}
+          {active ? <span className="live-indicator">{`Refreshing every ${pollMs / 1000} seconds`}</span> : null}
         </div>
         <ScrubStrip
           acts={acts}
@@ -502,7 +530,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
       <section className="panel log-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">{preferences.level === "director" ? "Operator record" : "Audience record"}</p>
+            <p className="eyebrow">{level === "director" ? "Operator record" : "Audience record"}</p>
             <h2>Full transcript</h2>
           </div>
           <button className="secondary-button" onClick={() => setLogOpen((open) => !open)} type="button">
@@ -544,7 +572,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
                         beat={beat}
                         compact
                         expanded={expandedKeys.has(beat.key)}
-                        level={preferences.level}
+                        level={level}
                         nameOf={nameOf}
                         onToggle={toggleExpanded}
                         reasoning={preferences.reasoning}
@@ -556,7 +584,7 @@ export function GameDetail({ initialGame }: { initialGame: GameDetailData }) {
               ))}
             </div>
 
-            {preferences.level === "director" ? (
+            {mode === "operator" && preferences.level === "director" ? (
               <details className="private-record">
                 <summary>Private record ({privateEvents.length} events)</summary>
                 <ol>

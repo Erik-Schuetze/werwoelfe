@@ -1,3 +1,5 @@
+import { deploymentMode } from "@/lib/mode";
+
 /**
  * Next.js's one startup hook, and the only place the game runtime is constructed.
  *
@@ -10,6 +12,13 @@ export async function register(): Promise<void> {
   // Instrumentation runs once per runtime (nodejs and edge). Only the Node.js server owns the
   // filesystem, SQLite and the Kubernetes client, so any other runtime returns immediately.
   if (process.env.NEXT_RUNTIME !== "nodejs") {
+    return;
+  }
+
+  // The viewer is a stateless proxy: no ServiceAccount, no PVC, no game runtime. Registering one
+  // and firing `reconcileRuns()` there would only sweep a cluster it cannot reach, so only the
+  // operator owns the runtime.
+  if (deploymentMode() !== "operator") {
     return;
   }
 

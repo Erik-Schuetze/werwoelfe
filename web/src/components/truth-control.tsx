@@ -11,6 +11,9 @@ const LEVELS: { id: TruthLevel; label: string; hint: string }[] = [
   { id: "director", label: "Director", hint: "Every private channel, for checking the run." },
 ];
 
+/** Every level the operator console offers. The audience is given a subset of these. */
+const ALL_LEVELS: TruthLevel[] = LEVELS.map((level) => level.id);
+
 /**
  * Stored preferences cannot be known while the server renders, so the hydrating
  * render is pinned to the server snapshot and the real values land immediately
@@ -24,9 +27,19 @@ export function usePreferences(): Preferences {
   return mounted ? stored : getServerSnapshot();
 }
 
-export function TruthControl() {
+export function TruthControl({ levels = ALL_LEVELS }: { levels?: TruthLevel[] }) {
   const preferences = usePreferences();
-  const active = LEVELS.find((level) => level.id === preferences.level) ?? LEVELS[1];
+  const available = LEVELS.filter((level) => levels.includes(level.id));
+
+  // A browser that has been used on the operator console still holds "director", which is not
+  // on offer here, so the stored level cannot be trusted to be one of the buttons. Fall back to
+  // a level that is actually rendered, and never to Director, so the audience has no way to land
+  // there even with a preference carried in from elsewhere.
+  const active =
+    available.find((level) => level.id === preferences.level) ??
+    available.find((level) => level.id === "spectator") ??
+    available[0] ??
+    LEVELS[0];
 
   return (
     <div className="truth-control">
@@ -36,10 +49,10 @@ export function TruthControl() {
       </div>
       <fieldset className="truth-levels">
         <legend className="visually-hidden">Truth level</legend>
-        {LEVELS.map((level) => (
+        {available.map((level) => (
           <button
-            aria-pressed={preferences.level === level.id}
-            className={preferences.level === level.id ? "active" : ""}
+            aria-pressed={active.id === level.id}
+            className={active.id === level.id ? "active" : ""}
             key={level.id}
             onClick={() => update({ level: level.id })}
             type="button"
