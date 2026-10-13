@@ -1,5 +1,6 @@
 import "server-only";
 
+import { resolvePublicPath } from "@/lib/public-path";
 import { assertViewerEnvironment, environment } from "@/lib/server/env";
 
 /**
@@ -10,6 +11,15 @@ import { assertViewerEnvironment, environment } from "@/lib/server/env";
  * components, which want parsed JSON, and the `/api/viewer/*` routes, which want to hand the
  * operator's response straight back to the browser — so it exposes both shapes over one fetch and
  * one cache.
+ *
+ * ## Every request is confined to `/api/public/`
+ *
+ * `resolvePublicPath` is the single choke point every upstream path passes through: it resolves the
+ * path against the operator and refuses it unless the *resolved* URL keeps the operator's origin and
+ * a `/api/public/` pathname. Resolving is what matters — `new URL` collapses `..` segments while it
+ * builds the URL, so a check on the input string would still read `/api/public/…` on the way in
+ * while the request went out to `/api/games`. A refused path is turned into a synthetic not-found
+ * entry rather than a fetch and is never cached, so it renders as a 404 at both call sites.
  *
  * ## Fail loudly when misconfigured, degrade quietly when the operator is down
  *
@@ -26,8 +36,12 @@ import { assertViewerEnvironment, environment } from "@/lib/server/env";
  *
  * The endpoint is internet-facing and unauthenticated, so a crowd of concurrent viewers must not
  * become a crowd of concurrent operator calls. A short `viewerCacheMs` TTL collapses them into one.
- * Only a healthy (`response.ok`) answer is cached: caching a 500 would pin a transient operator
- * error in front of the audience for the whole TTL, long after it had cleared.
+ * The key is the **normalised** `url.href`, not the caller's path, so every spelling that resolves
+ * to the same resource (`/api/public/./games`, `/api/public/games/../games`, …) shares one entry —
+ * keying on the raw path would let an attacker mint unbounded distinct keys for one upstream
+ * resource and defeat the cache entirely. Only a healthy (`response.ok`) answer is cached: caching a
+ * 500 would pin a transient operator error in front of the audience for the whole TTL, long after it
+ * had cleared.
  */
 
 export type OperatorResult<T> =
@@ -84,21 +98,47 @@ function put(key: string, entry: CacheEntry): void {
 }
 
 /**
+ * The verdict for a path that escapes `/api/public/`: a 404, shaped like the operator's own.
+ *
+ * Synthesised rather than fetched, so a refused path never reaches the network. It is a 404 — not a
+ * 502 — on purpose: both call sites already treat a 404 as "this resource is not there", so the same
+ * `resolvePublicPath` refusal renders as a clean 404 through both (`not-found` for the page, a 404
+ * response for the route) instead of the "unavailable, retry" panel an outage would show. It is
+ * never inserted into the cache, so a refused path cannot pin an entry.
+ */
+const REFUSED: CacheEntry = {
+  expiresAt: 0,
+  status: 404,
+  body: JSON.stringify({ error: "Game not found." }),
+  contentType: "application/json",
+};
+
+/**
  * Fetch `pathname` from the operator, through the cache. `null` means the operator could not be
  * reached at all (timeout, refused connection, DNS); a non-2xx answer still returns its entry, so
  * callers can distinguish "not found" from "unreachable".
+ *
+ * The path is resolved and confined first, and the cache is keyed on the resolved `url.href`, so
+ * every spelling of one resource shares one entry and nothing outside `/api/public/` is ever
+ * fetched, cached, or keyed.
  */
 async function fetchOperator(pathname: string): Promise<CacheEntry | null> {
+  const resolved = resolvePublicPath(environment.operatorUrl, pathname);
+  if (!resolved.ok) {
+    return REFUSED;
+  }
+  const key = resolved.url.href;
+
   const entries = cache();
   const now = Date.now();
-  const cached = entries.get(pathname);
+  const cached = entries.get(key);
   if (cached && cached.expiresAt > now) {
     return cached;
   }
 
   let response: Response;
   try {
-    response = await fetch(new URL(pathname, environment.operatorUrl), {
+    response = await fetch(resolved.url, {
       cache: "no-store",
       signal: AbortSignal.timeout(environment.operatorTimeoutMs),
     });
@@ -115,7 +155,7 @@ async function fetchOperator(pathname: string): Promise<CacheEntry | null> {
     contentType: response.headers.get("content-type"),
   };
   if (response.ok) {
-    put(pathname, entry);
+    put(key, entry);
   }
   return entry;
 }
@@ -125,7 +165,9 @@ async function fetchOperator(pathname: string): Promise<CacheEntry | null> {
  *
  * `not-found` is kept distinct from `unreachable` on purpose: a 404 from the operator is a game that
  * genuinely is not there (or was hidden), which the viewer renders as its own 404, while anything
- * else is an outage the audience should be told to retry.
+ * else is an outage the audience should be told to retry. A path `resolvePublicPath` refused lands
+ * here too — the synthetic 404 above is indistinguishable from a real one downstream, which is what
+ * makes a rejected traversal a clean 404 rather than an outage.
  */
 export async function getOperatorJson<T>(path: string): Promise<OperatorResult<T>> {
   assertViewerEnvironment();

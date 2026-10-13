@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { GameDetail } from "@/components/game-detail";
 import { ViewerUnavailable } from "@/components/viewer-unavailable";
 import type { GameDetail as GameDetailData } from "@/lib/game";
+import { isGameId } from "@/lib/game-id";
 import { isViewerMode } from "@/lib/mode";
 import { environment } from "@/lib/server/env";
 import { getOperatorJson } from "@/lib/server/operator-client";
@@ -17,6 +18,12 @@ export default async function ViewerGamePage({ params }: PageProps<"/viewer/game
     notFound();
   }
   const { id } = await params;
+  // Only a UUID can name a run, so anything else is the operator's own 404 verdict decided one hop
+  // earlier — before the id is ever interpolated into a path. This is the primary gate;
+  // `resolvePublicPath` in `operator-client.ts` is the confinement behind it.
+  if (!isGameId(id)) {
+    notFound();
+  }
   const result = await getOperatorJson<{ game: GameDetailData }>("/api/public/games/" + id);
   if (!result.ok) {
     // "not-found" is the operator's own verdict — a run that never existed, or one the audience
